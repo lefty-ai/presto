@@ -80,6 +80,7 @@
         <module>presto-array</module>
         <module>presto-jmx</module>
         <module>presto-record-decoder</module>
+        <module>presto-elastic</module>
         <module>presto-kafka</module>
         <module>presto-redis</module>
         <module>presto-accumulo</module>
