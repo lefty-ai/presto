@@ -13,37 +13,52 @@
  */
 package io.combinatoric.presto.elasticsearch;
 
-import io.prestosql.spi.connector.*;
+import io.prestosql.spi.Page;
+import io.prestosql.spi.connector.ConnectorPageSource;
 
-public class ElasticsearchHandleResolver implements ConnectorHandleResolver
+import java.io.IOException;
+
+public class ElasticsearchPageSource implements ConnectorPageSource
 {
-    @Override
-    public Class<? extends ConnectorTableHandle> getTableHandleClass()
+
+    public ElasticsearchPageSource(ElasticsearchClient client)
     {
-        return ElasticsearchTableHandle.class;
+
     }
 
     @Override
-    public Class<? extends ConnectorTableLayoutHandle> getTableLayoutHandleClass()
+    public long getCompletedBytes()
     {
-        return ElasticsearchTableLayoutHandle.class;
+        return 0;
     }
 
     @Override
-    public Class<? extends ColumnHandle> getColumnHandleClass()
+    public long getReadTimeNanos()
     {
-        return ElasticsearchColumnHandle.class;
+        return 0;
     }
 
     @Override
-    public Class<? extends ConnectorSplit> getSplitClass()
+    public boolean isFinished()
     {
-        return ElasticsearchSplit.class;
+        return false;
     }
 
     @Override
-    public Class<? extends ConnectorTransactionHandle> getTransactionHandleClass()
+    public Page getNextPage()
     {
-        return ElasticsearchTransactionHandle.class;
+        return null;
+    }
+
+    @Override
+    public long getSystemMemoryUsage()
+    {
+        return 0;
+    }
+
+    @Override
+    public void close() throws IOException
+    {
+
     }
 }

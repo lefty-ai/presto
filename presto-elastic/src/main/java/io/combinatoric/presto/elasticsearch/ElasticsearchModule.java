@@ -31,13 +31,15 @@ public class ElasticsearchModule implements Module
         binder.bind(ElasticsearchConnector.class).in(Scopes.SINGLETON);
         binder.bind(ElasticsearchHandleResolver.class).in(Scopes.SINGLETON);
         binder.bind(ElasticsearchMetadata.class).in(Scopes.SINGLETON);
+        binder.bind(ElasticsearchPageSourceProvider.class).in(Scopes.SINGLETON);
+        binder.bind(ElasticsearchSplitManager.class).in(Scopes.SINGLETON);
 
-        configBinder(binder).bindConfig(ElasticsearchClientConfig.class);
+        configBinder(binder).bindConfig(ElasticsearchConfig.class);
     }
 
     @Singleton
     @Provides
-    public ElasticsearchClient createElasticsearchClient(ElasticsearchClientConfig config)
+    public ElasticsearchClient createElasticsearchClient(ElasticsearchConfig config)
     {
         requireNonNull(config, "config is null");
         return new ElasticsearchClient(config);

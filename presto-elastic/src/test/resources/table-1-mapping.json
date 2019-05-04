@@ -1,0 +1,7 @@
+{
+    "properties": {
+        "a_byte":      { "type": "byte"  },
+        "b_short":     { "type": "short"  },
+        "age":         { "type": "integer" }
+    }
+}
