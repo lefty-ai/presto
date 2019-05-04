@@ -35,12 +35,12 @@ public class ElasticsearchClient implements Closeable
 
     private final RestHighLevelClient client;
 
-    public ElasticsearchClient(ElasticsearchClientConfig config)
+    public ElasticsearchClient(ElasticsearchConfig config)
     {
         requireNonNull(config, "config is null");
 
         List<HttpHost> hosts = new ArrayList<>();
-        for (String clusterHost : config.getClusterHosts()) {
+        for (String clusterHost : config.getHosts()) {
             HostAndPort hostAndPort = HostAndPort.fromString(clusterHost).withDefaultPort(9200);
             HttpHost host = new HttpHost(hostAndPort.getHost(), hostAndPort.getPort(), "http");
             log.info("Elasticsearch client connecting to: " + host.toString());
@@ -56,8 +56,7 @@ public class ElasticsearchClient implements Closeable
     }
 
     @Override
-    public void close()
-            throws IOException
+    public void close() throws IOException
     {
         client.close();
     }

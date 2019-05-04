@@ -24,25 +24,17 @@ import io.prestosql.spi.type.TypeManager;
 
 import java.util.Map;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.google.common.base.Throwables.throwIfUnchecked;
 import static java.util.Objects.requireNonNull;
 
 public class ElasticsearchConnectorFactory implements ConnectorFactory
 {
-    private final String name;
-
-    public ElasticsearchConnectorFactory(String name)
-    {
-        checkArgument(!isNullOrEmpty(name), "name is null or empty");
-        this.name = name;
-    }
+    public ElasticsearchConnectorFactory() { ; }
 
     @Override
     public String getName()
     {
-        return name;
+        return "elasticsearch";
     }
 
     @Override

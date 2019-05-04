@@ -13,23 +13,6 @@
  */
 package io.combinatoric.presto.elasticsearch;
 
-import com.google.common.collect.ImmutableList;
-
-import io.prestosql.spi.Plugin;
-import io.prestosql.spi.connector.ConnectorFactory;
-
-public class ElasticsearchPlugin implements Plugin
+public class TestElasticsearchPageSource
 {
-    private final ConnectorFactory factory;
-
-    public ElasticsearchPlugin()
-    {
-        factory = new ElasticsearchConnectorFactory();
-    }
-
-    @Override
-    public Iterable<ConnectorFactory> getConnectorFactories()
-    {
-        return ImmutableList.of(factory);
-    }
 }
