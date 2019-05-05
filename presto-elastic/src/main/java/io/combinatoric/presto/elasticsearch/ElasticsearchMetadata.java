@@ -120,40 +120,77 @@ public class ElasticsearchMetadata implements ConnectorMetadata
     }
 
     @Override
+    public Map<SchemaTableName, List<ColumnMetadata>> listTableColumns(ConnectorSession session, SchemaTablePrefix prefix)
+    {
+        requireNonNull(prefix, "prefix is null");
+        ImmutableMap.Builder<SchemaTableName, List<ColumnMetadata>> columns = ImmutableMap.builder();
+
+        for (SchemaTableName tableName : listTables(session, prefix)) {
+            columns.put(tableName, getTableMetadata(tableName).getColumns());
+        }
+
+        return columns.build();
+    }
+
+    @Override
     public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle table, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns)
     {
-        return null;
+        throw new UnsupportedOperationException("Unimplemented");
     }
 
     @Override
     public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
     {
-        return null;
+        throw new UnsupportedOperationException("Unimplemented");
     }
 
     @Override
     public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table)
     {
-        GetMappingsResponse response;
         ElasticsearchTableHandle handle = (ElasticsearchTableHandle) table;
+        return getTableMetadata(handle.getSchemaTableName());
+    }
+
+    @Override
+    public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle table)
+    {
+        ConnectorTableMetadata metadata = getTableMetadata(((ElasticsearchTableHandle) table).getSchemaTableName());
+        ImmutableMap.Builder<String, ColumnHandle> handles = ImmutableMap.builder();
+
+        for (ColumnMetadata column : metadata.getColumns()) {
+            handles.put(column.getName(), new ElasticsearchColumnHandle(column.getName(), column.getType()));
+        }
+
+        return handles.build();
+    }
+
+    @Override
+    public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
+    {
+        return null;
+    }
+
+    private ConnectorTableMetadata getTableMetadata(SchemaTableName table)
+    {
+        GetMappingsResponse response;
 
         try {
-            GetMappingsRequest request = new GetMappingsRequest().indices(handle.getTableName());
+            GetMappingsRequest request = new GetMappingsRequest().indices(table.getTableName());
             response = client.client().indices().getMapping(request, RequestOptions.DEFAULT);
         }
         catch (IOException e) {
-            throw new TableNotFoundException(handle.getSchemaTableName(), "Unable to read table metadata", e);
+            throw new TableNotFoundException(table, "Unable to read table metadata", e);
         }
 
-        if (!response.mappings().containsKey(handle.getTableName())) {
+        if (!response.mappings().containsKey(table.getTableName())) {
             throw new TableNotFoundException(
-                    handle.getSchemaTableName(), "Metadata does not exist for table: " + handle.getTableName());
+                    table, "Metadata does not exist for table: " + table.getTableName());
         }
 
-        Map<String, Object> mapping = response.mappings().get(handle.getTableName()).sourceAsMap();
+        Map<String, Object> mapping = response.mappings().get(table.getTableName()).sourceAsMap();
         List<ColumnMetadata> columns = mappings(mapping);
 
-        return new ConnectorTableMetadata(handle.getSchemaTableName(), columns);
+        return new ConnectorTableMetadata(table, columns);
     }
 
     /**
@@ -185,21 +222,20 @@ public class ElasticsearchMetadata implements ConnectorMetadata
         return new ColumnMetadata(name, toPrestoType(type), true, null, null, hidden, ImmutableMap.of());
     }
 
-    @Override
-    public Map<String, ColumnHandle> getColumnHandles(ConnectorSession session, ConnectorTableHandle tableHandle)
+    private List<SchemaTableName> listTables(ConnectorSession session, SchemaTablePrefix prefix)
     {
-        return null;
-    }
+        // List all tables if schema or table is null
+        if (prefix.isEmpty()) {
+            return listTables(session, prefix.getSchema());
+        }
 
-    @Override
-    public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
-    {
-        return null;
-    }
+        // Make sure requested table exists, returning the single table of it does
+        SchemaTableName table = prefix.toSchemaTableName();
+        if (getTableHandle(session, table) != null) {
+            return ImmutableList.of(table);
+        }
 
-    @Override
-    public Map<SchemaTableName, List<ColumnMetadata>> listTableColumns(ConnectorSession session, SchemaTablePrefix prefix)
-    {
-        return null;
+        // Else, return empty list
+        return ImmutableList.of();
     }
 }

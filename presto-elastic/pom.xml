@@ -60,6 +60,12 @@
             <version>${elasticsearch.version}</version>
         </dependency>
         <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+            <scope>runtime</scope>
+            <version>2.10</version>
+        </dependency>
+        <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
@@ -97,11 +103,12 @@
             <version>4.4.11</version>
         </dependency>
 
+        <!--
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt</artifactId>
         </dependency>
-
+        -->
         <dependency>
             <groupId>io.airlift</groupId>
             <artifactId>joda-to-java-time-bridge</artifactId>

@@ -34,7 +34,7 @@ public class ElasticsearchConnectorFactory implements ConnectorFactory
     @Override
     public String getName()
     {
-        return "elasticsearch";
+        return "elastic";
     }
 
     @Override
