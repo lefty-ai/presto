@@ -34,11 +34,9 @@ import static io.combinatoric.presto.elasticsearch.ElasticsearchConfig.DEFAULT_S
 
 public final class TableUtil
 {
-
     private static final Type[] primitives = { TINYINT, SMALLINT, INTEGER, BIGINT, VARCHAR, BOOLEAN /*, REAL, DOUBLE, , BOOLEAN*/ };
 
-    public static final TestTable TEST_TABLE_PRIMITIVE_TYPES =
-            new TestTable(
+    public static final TestTable TEST_TABLE = new TestTable(
                 new SchemaTableName(DEFAULT_SCHEMA, "primitive-types"), primitives());
 
     public static class TestTable
