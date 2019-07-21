@@ -18,17 +18,22 @@ import pl.allegro.tech.embeddedelasticsearch.PopularProperties;
 
 import io.prestosql.spi.Plugin;
 import io.prestosql.spi.connector.*;
+import io.prestosql.spi.session.PropertyMetadata;
 import io.prestosql.testing.TestingConnectorContext;
+import io.prestosql.testing.TestingConnectorSession;
 
 import io.airlift.log.Logger;
+import io.airlift.units.Duration;
 
 import com.google.common.io.Files;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -36,6 +41,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.indices.CreateIndexRequest;
@@ -56,20 +62,25 @@ import static io.airlift.testing.Assertions.assertInstanceOf;
 import static io.combinatoric.presto.elasticsearch.type.Types.toElasticsearchTypeName;
 import static java.util.concurrent.TimeUnit.MINUTES;
 
-
 public abstract class IntegrationTestBase extends RandomizedTest
 {
     private static final Logger logger = Logger.get(IntegrationTestBase.class);
-
-    private static final int    NUM_DATA_NODES        = 1;
-    private static final String ELASTICSEARCH_VERSION = "6.7.0";
-    private static final String CLUSTER_NAME          = "embedded-elasticsearch";
 
     private   static Connector           connector;
     private   static EmbeddedElastic[]   cluster;
     protected static ElasticsearchClient client;
     protected static ConnectorMetadata   metadata;
     protected static ElasticsearchConfig config;
+
+    private static final int    NUM_DATA_NODES         = 1;
+    private static final String ELASTICSEARCH_VERSION  = "6.7.0";
+    private static final String CLUSTER_NAME           = "embedded-elasticsearch";
+    private static int          FETCH_SIZE             = 1024;
+    private static Duration     SCROLL_TIMEOUT         = new Duration(1000.0, TimeUnit.MILLISECONDS);
+
+    private static final List<PropertyMetadata<?>> PROPERTIES = getSessionProperties();
+
+    protected static final ConnectorSession SESSION = new TestingConnectorSession(PROPERTIES);
 
     @BeforeClass
     public static void beforeClass() throws IOException, InterruptedException
@@ -88,6 +99,9 @@ public abstract class IntegrationTestBase extends RandomizedTest
                     .map(es -> "localhost:" + es.getHttpPort()).collect(Collectors.joining(","));
             config = new ElasticsearchConfig().setHosts(endpoints);
         }
+
+        config.setFetchSize(FETCH_SIZE);
+        config.setScrollTimeout(SCROLL_TIMEOUT);
 
         connector = factory.create("test-connector", config.asMap(), new TestingConnectorContext());
         client    = new ElasticsearchClient(config);
@@ -125,7 +139,7 @@ public abstract class IntegrationTestBase extends RandomizedTest
     /**
      * Creates an empty schema with the given name.
      */
-    protected void createIndex(String index) throws IOException
+    protected static void createIndex(String index) throws IOException
     {
         client.client().indices().create(
                 new CreateIndexRequest(index).settings(Settings.builder()
@@ -137,7 +151,7 @@ public abstract class IntegrationTestBase extends RandomizedTest
     /**
      * Deletes the given index.
      */
-    protected void dropIndex(String index) throws IOException
+    protected static void drop(String index) throws IOException
     {
         boolean exists = client.client().indices().exists(new GetIndexRequest(index), RequestOptions.DEFAULT);
         if (!exists) {
@@ -150,22 +164,23 @@ public abstract class IntegrationTestBase extends RandomizedTest
         }
     }
 
-    protected void dropTable(TestTable table) throws IOException
+    protected static void drop(TestTable table) throws IOException
     {
-        dropIndex(table.schema().getTableName());
+        drop(table.schema().getTableName());
     }
 
-    protected TestTable createTable(TestTable table) throws IOException
+    protected static TestTable create(TestTable table, int rows, int shards) throws IOException
     {
-        mapping(table.schema(), table.columns());
-        generate(table.schema(), table.columns());
+        mapping(table.schema(), table.columns(), shards);
+        populate(table, rows);
+        table.shards(shards);
         return table;
     }
 
     /**
      * Creates an index mapping for the given columns.
      */
-    protected void mapping(SchemaTableName st, List<ElasticsearchColumnHandle> columns) throws IOException
+    protected static void mapping(SchemaTableName st, List<ElasticsearchColumnHandle> columns, int shards) throws IOException
     {
         XContentBuilder json = XContentFactory.jsonBuilder();
 
@@ -181,14 +196,14 @@ public abstract class IntegrationTestBase extends RandomizedTest
                 new CreateIndexRequest(st.getTableName())
                         .mapping(json)
                         .settings(Settings.builder()
-                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_shards", shards)
                                 .put("index.number_of_replicas", 0).build())
                         .waitForActiveShards(ActiveShardCount.ALL),
                 RequestOptions.DEFAULT);
 
     }
 
-    private void _mapping(XContentBuilder json, List<ElasticsearchColumnHandle> columns) throws IOException
+    private static void _mapping(XContentBuilder json, List<ElasticsearchColumnHandle> columns) throws IOException
     {
         for (ElasticsearchColumnHandle column : columns) {
             String typename = toElasticsearchTypeName(column.getColumnType());
@@ -203,43 +218,83 @@ public abstract class IntegrationTestBase extends RandomizedTest
         }
     }
 
-    private void generate(SchemaTableName table, List<ElasticsearchColumnHandle> columns) throws IOException
+    /**
+     * Populates a data with random data.
+     */
+    protected static void populate(TestTable table, int rows) throws IOException
     {
-        XContentBuilder json = XContentFactory.jsonBuilder();
-        json.startObject();
+        SchemaTableName schema = table.schema();
 
-        for (ElasticsearchColumnHandle column : columns) {
-            switch (column.getColumnType().getTypeSignature().getBase())
-            {
-                case "integer":
-                    json.field(column.getColumnName(), randomInt());
-                    break;
-                case "bigint":
-                    json.field(column.getColumnName(), randomLong());
-                    break;
-                case "tinyint":
-                    json.field(column.getColumnName(), randomByte());
-                    break;
-                case "smallint":
-                    json.field(column.getColumnName(), randomShort());
-                    break;
-                case "boolean":
-                    json.field(column.getColumnName(), randomBoolean());
-                    break;
-                case "varchar":
-                    json.field(column.getColumnName(), randomAsciiAlphanumOfLengthBetween(0, 1024));
-                    break;
-                default:
-                    throw new RuntimeException("Unsupported data type: " + column.getColumnType().getTypeSignature().getBase());
+        for (int row = 0; row < rows; row++) {
+            XContentBuilder json = XContentFactory.jsonBuilder();
+            json.startObject();
+
+            for (ElasticsearchColumnHandle column : table.columns()) {
+                switch (column.getColumnType().getTypeSignature().getBase()) {
+                    case "integer":
+                        int i = randomInt();
+                        json.field(column.getColumnName(), i);
+                        table.data().get(column.getColumnType()).add(i);
+                        break;
+                    case "bigint":
+                        long l = randomLong();
+                        json.field(column.getColumnName(), l);
+                        table.data().get(column.getColumnType()).add(l);
+                        break;
+                    case "tinyint":
+                        byte b = randomByte();
+                        json.field(column.getColumnName(), b);
+                        table.data().get(column.getColumnType()).add(b);
+                        break;
+                    case "smallint":
+                        short s = randomShort();
+                        json.field(column.getColumnName(), s);
+                        table.data().get(column.getColumnType()).add(s);
+                        break;
+                    case "boolean":
+                        boolean bool = randomBoolean();
+                        json.field(column.getColumnName(), bool);
+                        table.data().get(column.getColumnType()).add(bool);
+                        break;
+                    case "varchar":
+                        String str = randomAsciiAlphanumOfLengthBetween(0, 128);
+                        json.field(column.getColumnName(), str);
+                        table.data().get(column.getColumnType()).add(str);
+                        break;
+                    case "real":
+                        float f = randomFloat();
+                        json.field(column.getColumnName(), f);
+                        table.data().get(column.getColumnType()).add(f);
+                        break;
+                    case "double":
+                        double d = randomDouble();
+                        json.field(column.getColumnName(), d);
+                        table.data().get(column.getColumnType()).add(d);
+                        break;
+                    case "date":
+                        String dt = randomDate();
+                        json.field(column.getColumnName(), dt);
+                        table.data().get(column.getColumnType()).add(dt);
+                        break;
+                    default:
+                        throw new RuntimeException("Unsupported data type: " + column.getColumnType().getTypeSignature().getBase());
+                }
+            }
+
+            json.endObject();
+
+            IndexResponse response = client.client().index(
+                    new IndexRequest(schema.getTableName()).source(json).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
+                    RequestOptions.DEFAULT);
+            if (response.status() != RestStatus.CREATED) {
+                throw new RuntimeException("Unable to index data: " + response.status());
             }
         }
+    }
 
-        json.endObject();
-
-        IndexResponse response = client.client().index(new IndexRequest(table.getTableName()).source(json), RequestOptions.DEFAULT);
-        if (response.status() != RestStatus.CREATED) {
-            throw new RuntimeException("Unable to index data: " + response.status());
-        }
+    private static String randomDate()
+    {
+        return LocalDate.now().minusDays(randomIntBetween(0, 365 * 5)).toString();
     }
 
     @AfterClass
@@ -262,6 +317,14 @@ public abstract class IntegrationTestBase extends RandomizedTest
                 }
             }
         }
+    }
+
+    private static List<PropertyMetadata<?>> getSessionProperties()
+    {
+        ElasticsearchConfig config = new ElasticsearchConfig();
+        config.setFetchSize(FETCH_SIZE);
+        config.setScrollTimeout(SCROLL_TIMEOUT);
+        return new ElasticsearchSessionProperties(config).getSessionProperties();
     }
 
     /**

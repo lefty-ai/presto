@@ -14,27 +14,21 @@
 package io.combinatoric.presto.elasticsearch;
 
 import io.prestosql.spi.connector.*;
-import io.prestosql.testing.TestingConnectorSession;
 
 import io.airlift.log.Logger;
 
-import com.google.common.collect.ImmutableList;
-
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
-import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
-import static io.combinatoric.presto.elasticsearch.ElasticsearchConfig.DEFAULT_SCHEMA;
-import static io.combinatoric.presto.elasticsearch.TableUtil.TEST_TABLE;
+import static io.combinatoric.presto.elasticsearch.ElasticsearchConfig.DEFAULT_SCHEMA;;
+import static io.combinatoric.presto.elasticsearch.TableUtil.TestTable;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -43,19 +37,18 @@ public class TestElasticsearchMetadata extends IntegrationTestBase
 {
     private static final Logger logger = Logger.get(TestElasticsearchMetadata.class);
 
-    public static final ConnectorSession SESSION = new TestingConnectorSession(ImmutableList.of());
+    private static TestTable TEST_TABLE;
 
-
-    @Before
-    public void before() throws IOException
+    @BeforeClass
+    public static void before() throws Exception
     {
-        createTable(TEST_TABLE);
+        TEST_TABLE = create(TestTable.ofAll(), 1, 1);
     }
 
-    @After
-    public void after() throws IOException
+    @AfterClass
+    public static void after() throws Exception
     {
-        //dropTable(TEST_TABLE);
+        drop(TEST_TABLE);
     }
 
     @Test
@@ -115,7 +108,8 @@ public class TestElasticsearchMetadata extends IntegrationTestBase
     @Test
     public void testGetColumnHandles()
     {
-        ConnectorTableHandle handle = new ElasticsearchTableHandle(TEST_TABLE.schema().getSchemaName(), TEST_TABLE.schema().getTableName());
+        ConnectorTableHandle handle = new ElasticsearchTableHandle(
+                TEST_TABLE.schema().getSchemaName(), TEST_TABLE.schema().getTableName());
 
         Map<String, ColumnHandle> handles = metadata.getColumnHandles(SESSION, handle);
         assertThat(handles.size(), equalTo(TEST_TABLE.columns().size()));
@@ -146,6 +140,20 @@ public class TestElasticsearchMetadata extends IntegrationTestBase
                 assertThat(columns.get(i).getName(), equalTo(TEST_TABLE.columns().get(i).getColumnName()));
                 assertThat(columns.get(i).getType(), equalTo(TEST_TABLE.columns().get(i).getColumnType()));
             }
+        }
+    }
+
+    @Test
+    public void testGetColumnMetadata()
+    {
+        ConnectorTableHandle handle = new ElasticsearchTableHandle(
+                TEST_TABLE.schema().getSchemaName(), TEST_TABLE.schema().getTableName());
+        Map<String, ColumnHandle> handles = metadata.getColumnHandles(SESSION, handle);
+
+        for (Map.Entry<String, ColumnHandle> entry : handles.entrySet()) {
+            ColumnMetadata cm = metadata.getColumnMetadata(SESSION, handle, entry.getValue());
+            assertThat(cm.getName(), equalTo(((ElasticsearchColumnHandle) entry.getValue()).getColumnName()));
+            assertThat(cm.getType(), equalTo(((ElasticsearchColumnHandle) entry.getValue()).getColumnType()));
         }
     }
 }

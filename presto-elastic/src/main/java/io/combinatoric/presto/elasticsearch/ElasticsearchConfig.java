@@ -34,9 +34,12 @@ public class ElasticsearchConfig
 
     public static final String DEFAULT_SCHEMA ="default";
 
+    private boolean      https         = false;
     private int          fetchSize     = 1000;
     private Duration     scrollTimeout = new Duration(1000.00, TimeUnit.MILLISECONDS);
     private String       defaultSchema = DEFAULT_SCHEMA;
+    private String       username      = null;
+    private String       password      = null;
     private List<String> hosts         = ImmutableList.of();
 
     @Config("elasticsearch.hosts")
@@ -83,6 +86,42 @@ public class ElasticsearchConfig
     public ElasticsearchConfig setDefaultSchema(String defaultSchema)
     {
         this.defaultSchema = defaultSchema;
+        return this;
+    }
+
+    @Config("elasticsearch.https")
+    public ElasticsearchConfig setHttps(boolean https)
+    {
+        this.https = https;
+        return this;
+    }
+
+    public boolean isHttps()
+    {
+        return https;
+    }
+
+    @Config("elasticsearch.username")
+    public ElasticsearchConfig setUsername(String username)
+    {
+        this.username = username;
+        return this;
+    }
+
+    public String getUsername()
+    {
+        return username;
+    }
+
+    public String getPassword()
+    {
+        return password;
+    }
+
+    @Config("elasticsearch.password")
+    public ElasticsearchConfig setPassword(String password)
+    {
+        this.password = password;
         return this;
     }
 

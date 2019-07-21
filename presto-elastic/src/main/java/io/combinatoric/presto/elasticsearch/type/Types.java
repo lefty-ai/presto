@@ -16,10 +16,13 @@ package io.combinatoric.presto.elasticsearch.type;
 import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.type.Type;
 
+import static io.prestosql.spi.type.DateType.DATE;
 import static io.prestosql.spi.type.IntegerType.INTEGER;
 import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.SmallintType.SMALLINT;
 import static io.prestosql.spi.type.TinyintType.TINYINT;
+import static io.prestosql.spi.type.RealType.REAL;
+import static io.prestosql.spi.type.DoubleType.DOUBLE;
 import static io.prestosql.spi.type.BooleanType.BOOLEAN;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
 import static io.combinatoric.presto.elasticsearch.ElasticsearchErrorCode.ELASTICSEARCH_UNSUPPORTED_TYPE;
@@ -44,7 +47,14 @@ public class Types
             case "boolean":
                 return BOOLEAN;
             case "keyword":
+            case "text":
                 return VARCHAR;
+            case "float":
+                return REAL;
+            case "double":
+                return DOUBLE;
+            case "date":
+                return DATE;
             default:
                 throw new PrestoException(ELASTICSEARCH_UNSUPPORTED_TYPE, "Unsupported type: " + type);
         }
@@ -68,6 +78,12 @@ public class Types
                 return "boolean";
             case "varchar":
                 return "keyword";
+            case "real":
+                return "float";
+            case "double":
+                return "double";
+            case "date":
+                return "date";
             default:
                 throw new PrestoException(ELASTICSEARCH_UNSUPPORTED_TYPE, "Unsupported type: " + type);
         }

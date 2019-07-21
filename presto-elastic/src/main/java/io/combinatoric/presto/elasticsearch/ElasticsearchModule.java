@@ -33,6 +33,7 @@ public class ElasticsearchModule implements Module
         binder.bind(ElasticsearchMetadata.class).in(Scopes.SINGLETON);
         binder.bind(ElasticsearchPageSourceProvider.class).in(Scopes.SINGLETON);
         binder.bind(ElasticsearchSplitManager.class).in(Scopes.SINGLETON);
+        binder.bind(ElasticsearchSessionProperties.class).in(Scopes.SINGLETON);
 
         configBinder(binder).bindConfig(ElasticsearchConfig.class);
     }

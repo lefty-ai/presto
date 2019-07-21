@@ -16,8 +16,6 @@ package io.combinatoric.presto.elasticsearch;
 import io.prestosql.spi.PrestoException;
 import io.prestosql.spi.connector.*;
 
-import io.airlift.log.Logger;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
@@ -33,6 +31,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
+import org.elasticsearch.common.settings.Settings;
 
 import static java.util.Objects.requireNonNull;
 import static io.combinatoric.presto.elasticsearch.ElasticsearchErrorCode.*;
@@ -48,8 +47,6 @@ import static org.elasticsearch.action.support.IndicesOptions.WildcardStates.OPE
  */
 public class ElasticsearchMetadata implements ConnectorMetadata
 {
-    private static final Logger logger = Logger.get(ElasticsearchMetadata.class);
-
     private static final IndicesOptions indicesOptions = new IndicesOptions(
             EnumSet.of(IGNORE_ALIASES, FORBID_CLOSED_INDICES, ALLOW_NO_INDICES),
             EnumSet.of(OPEN));
@@ -107,12 +104,21 @@ public class ElasticsearchMetadata implements ConnectorMetadata
             if (indices == null || indices.length == 0) {
                 return null;
             }
+
             if (indices.length > 1) {
                 throw new PrestoException(ELASTICSEARCH_METADATA_ERROR,
-                        "Multiple elasticsearch indices " + Arrays.toString(indices) + " found for table: " + table.getTableName());
+                        "Multiple elasticsearch indices " + Arrays.toString(indices) + " found for table: " + table);
             }
 
-            return new ElasticsearchTableHandle(table.getSchemaName(), indices[0]);
+            Settings settings = response.settings().get(table.getTableName());
+            if (settings == null) {
+                throw new PrestoException(ELASTICSEARCH_METADATA_ERROR, "Unable to read settings for table: " + table);
+            }
+
+            return new ElasticsearchTableHandle(
+                    table.getSchemaName(),
+                    indices[0],
+                    Integer.parseInt(settings.get("index.number_of_shards")));
         }
         catch (IOException e) {
             throw new TableNotFoundException(table, e);
@@ -133,15 +139,15 @@ public class ElasticsearchMetadata implements ConnectorMetadata
     }
 
     @Override
-    public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle table, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns)
+    public boolean usesLegacyTableLayouts()
     {
-        throw new UnsupportedOperationException("Unimplemented");
+        return false;
     }
 
     @Override
-    public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
+    public ConnectorTableProperties getTableProperties(ConnectorSession session, ConnectorTableHandle handle)
     {
-        throw new UnsupportedOperationException("Unimplemented");
+        return new ConnectorTableProperties();
     }
 
     @Override
@@ -165,9 +171,9 @@ public class ElasticsearchMetadata implements ConnectorMetadata
     }
 
     @Override
-    public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
+    public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle table, ColumnHandle column)
     {
-        return null;
+        return ((ElasticsearchColumnHandle) column).toColumnMetadata();
     }
 
     private ConnectorTableMetadata getTableMetadata(SchemaTableName table)
@@ -183,8 +189,7 @@ public class ElasticsearchMetadata implements ConnectorMetadata
         }
 
         if (!response.mappings().containsKey(table.getTableName())) {
-            throw new TableNotFoundException(
-                    table, "Metadata does not exist for table: " + table.getTableName());
+            throw new TableNotFoundException(table, "Metadata does not exist for table: " + table);
         }
 
         Map<String, Object> mapping = response.mappings().get(table.getTableName()).sourceAsMap();

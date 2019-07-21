@@ -15,6 +15,7 @@ package io.combinatoric.presto.elasticsearch;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+
 import io.prestosql.spi.connector.ConnectorTableHandle;
 import io.prestosql.spi.connector.SchemaTableName;
 
@@ -27,14 +28,22 @@ import static java.util.Objects.requireNonNull;
 public class ElasticsearchTableHandle implements ConnectorTableHandle
 {
     private final SchemaTableName table;
+    private final int numberOfShards;
 
     @JsonCreator
     public ElasticsearchTableHandle(@JsonProperty("schemaName") String schemaName,
-                                    @JsonProperty("tableName") String tableName)
+                                    @JsonProperty("tableName") String tableName,
+                                    @JsonProperty("numberOfShards") int numberOfShards)
     {
         requireNonNull(schemaName, "schemaName is null");
         requireNonNull(tableName, "tableName is null");
         table = new SchemaTableName(schemaName, tableName);
+        this.numberOfShards = numberOfShards;
+    }
+
+    public ElasticsearchTableHandle(String schemaName, String tableName)
+    {
+        this(schemaName, tableName, 1);
     }
 
     @JsonProperty
@@ -52,6 +61,12 @@ public class ElasticsearchTableHandle implements ConnectorTableHandle
     public SchemaTableName getSchemaTableName()
     {
         return table;
+    }
+
+    @JsonProperty
+    public int getNumberOfShards()
+    {
+        return numberOfShards;
     }
 
     @Override

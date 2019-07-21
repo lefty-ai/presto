@@ -15,6 +15,8 @@ package io.combinatoric.presto.elasticsearch;
 
 import io.prestosql.spi.connector.*;
 
+import com.google.common.collect.ImmutableList;
+
 import java.util.List;
 import javax.inject.Inject;
 
@@ -36,6 +38,12 @@ public class ElasticsearchPageSourceProvider implements ConnectorPageSourceProvi
                                                 ConnectorSplit split,
                                                 ConnectorTableHandle table, List<ColumnHandle> columns)
     {
-        return null;
+        ImmutableList.Builder<ElasticsearchColumnHandle> handles = ImmutableList.builder();
+
+        for (ColumnHandle handle : requireNonNull(columns, "columns is null")) {
+            handles.add((ElasticsearchColumnHandle) handle);
+        }
+
+        return new ElasticsearchPageSource(client, (ElasticsearchSplit) split, handles.build());
     }
 }

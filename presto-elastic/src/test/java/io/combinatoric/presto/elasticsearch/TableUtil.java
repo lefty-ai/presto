@@ -18,8 +18,7 @@ import io.prestosql.spi.type.Type;
 
 import com.google.common.collect.ImmutableList;
 
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static io.prestosql.spi.type.BooleanType.BOOLEAN;
@@ -30,48 +29,111 @@ import static io.prestosql.spi.type.SmallintType.SMALLINT;
 import static io.prestosql.spi.type.TinyintType.TINYINT;
 import static io.prestosql.spi.type.BigintType.BIGINT;
 import static io.prestosql.spi.type.VarcharType.VARCHAR;
+import static io.prestosql.spi.type.DateType.DATE;
 import static io.combinatoric.presto.elasticsearch.ElasticsearchConfig.DEFAULT_SCHEMA;
 
 public final class TableUtil
 {
-    private static final Type[] primitives = { TINYINT, SMALLINT, INTEGER, BIGINT, VARCHAR, BOOLEAN /*, REAL, DOUBLE, , BOOLEAN*/ };
+    private static final Type[] primitives = { TINYINT, SMALLINT, INTEGER, BIGINT, VARCHAR, BOOLEAN, REAL, DOUBLE };
+    private static final Type[] dates = { DATE };
 
-    public static final TestTable TEST_TABLE = new TestTable(
-                new SchemaTableName(DEFAULT_SCHEMA, "primitive-types"), primitives());
-
-    public static class TestTable
+    static class TestTable
     {
         private final SchemaTableName table;
-        private List<ElasticsearchColumnHandle> columns;
 
-        public TestTable(SchemaTableName table, List<ElasticsearchColumnHandle> columns)
+        private int                             shards;
+        private List<ElasticsearchColumnHandle> columns;
+        private Map<Type, List<Object>>         data;
+
+        TestTable(SchemaTableName table, List<ElasticsearchColumnHandle> columns)
         {
-            this.table = table;
+            this.table   = table;
+            this.shards  = -1;
+            this.data    = new HashMap<>();
             this.columns = columns.stream().sorted(
                     Comparator.comparing(ElasticsearchColumnHandle::getColumnName)).collect(Collectors.toList());
+
+            columns.stream().forEach(c -> data.put(c.getColumnType(), new ArrayList<>()));
         }
 
-        public SchemaTableName schema()
+        SchemaTableName schema()
         {
             return table;
         }
 
-        public List<ElasticsearchColumnHandle> columns()
+        List<ElasticsearchColumnHandle> columns()
         {
             return columns;
+        }
+
+        Map<? extends Type, List<Object>> data()
+        {
+            return data;
+        }
+
+        int shards()
+        {
+            return shards;
+        }
+
+        void shards(int s)
+        {
+            this.shards = s;
+        }
+
+        int rows()
+        {
+            if (!data.isEmpty()) {
+                for (Map.Entry<Type, List<Object>> entry : data.entrySet()) {
+                    return entry.getValue().size();
+                }
+            }
+
+            return 0;
+        }
+
+        static TestTable ofPrimitives()
+        {
+            return new TestTable(new SchemaTableName(DEFAULT_SCHEMA, "primitives-table"), primitives());
+        }
+
+        static TestTable ofAll()
+        {
+            return new TestTable(new SchemaTableName(DEFAULT_SCHEMA, "all-types-table"), all());
         }
     }
 
     /**
      * Creates a list of columns of the primitive data types.
      */
-    public static List<ElasticsearchColumnHandle> primitives()
+    private static List<ElasticsearchColumnHandle> primitives()
     {
         ImmutableList.Builder<ElasticsearchColumnHandle> builder = ImmutableList.builder();
         for (Type t : primitives) {
             builder.add(column("my_" + t.getTypeSignature().getBase(), t));
         }
         return builder.build();
+    }
+
+    /**
+     * Creates a list of columns of the date/time data types.
+     */
+    private static List<ElasticsearchColumnHandle> dates()
+    {
+        ImmutableList.Builder<ElasticsearchColumnHandle> builder = ImmutableList.builder();
+        for (Type t : dates) {
+            builder.add(column("my_" + t.getTypeSignature().getBase(), t));
+        }
+
+        return builder.build();
+    }
+
+    private static List<ElasticsearchColumnHandle> all()
+    {
+        List<ElasticsearchColumnHandle> columns = new ArrayList<>();
+        columns.addAll(primitives());
+        columns.addAll(dates());
+        return columns;
     }
 
     /**
